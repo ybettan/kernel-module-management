@@ -2,13 +2,11 @@
 
 set -euxo pipefail
 
-git remote add upstream https://github.com/kubernetes-sigs/kernel-module-management.git
-git fetch upstream
+commits_count=$(curl -H 'Accept: application/vnd.github+json' \
+    https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${PULL_NUMBER}) \
+    jq '.commits'
 
-commits_count=$(git rev-list --count HEAD ^upstream/main)
-# Look like Git (in Prow only) is adding an additional commit for each PR,
-# therefore, we are making sure there are 2 commits instead of 1
-if [[ ${commits_count} != 2 ]]; then
+if [[ ${commits_count} != 1 ]]; then
     echo '
     All PRs must contain a single commit.
     Please refer to https://github.com/kubernetes-sigs/kernel-module-management/blob/main/CONTRIBUTING.md
