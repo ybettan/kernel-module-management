@@ -58,6 +58,7 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
+// some comment
 func main() {
 	var (
 		configFile           string
