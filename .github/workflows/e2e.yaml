@@ -333,6 +333,9 @@ jobs:
         env:
           KUSTOMIZE_CONFIG_DEFAULT: ci/install-ci
 
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+
       - name: Wait until the KMMO Deployment is Available
         run: kubectl wait --for condition=Available deployments.apps -n kmm-operator-system kmm-operator-controller-manager
         timeout-minutes: 1
