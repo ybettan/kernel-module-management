@@ -12,6 +12,9 @@ jobs:
     name: Build the KMMO container image
 
     steps:
+
+      - run: echo ybettan
+
       - name: Checkout
         uses: actions/checkout@v3
 
