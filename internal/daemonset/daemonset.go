@@ -277,9 +277,24 @@ func (dc *daemonSetGenerator) SetDevicePluginAsDesired(
 						VolumeMounts:    append(mod.Spec.DevicePlugin.Container.VolumeMounts, containerVolumeMounts...),
 					},
 				},
-				PriorityClassName:  "system-node-critical",
-				ImagePullSecrets:   GetPodPullSecrets(mod.Spec.ImageRepoSecret),
-				NodeSelector:       map[string]string{getDriverContainerNodeLabel(mod.Name): ""},
+				PriorityClassName: "system-node-critical",
+				ImagePullSecrets:  GetPodPullSecrets(mod.Spec.ImageRepoSecret),
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      getDriverContainerNodeLabel(mod.Name),
+											Operator: v1.NodeSelectorOpExists,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 				ServiceAccountName: mod.Spec.DevicePlugin.ServiceAccountName,
 				Volumes:            append([]v1.Volume{devicePluginVolume}, mod.Spec.DevicePlugin.Volumes...),
 			},

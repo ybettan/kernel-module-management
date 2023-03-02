@@ -495,8 +495,21 @@ var _ = Describe("SetDevicePluginAsDesired", func() {
 							},
 						},
 						ImagePullSecrets: []v1.LocalObjectReference{repoSecret},
-						NodeSelector: map[string]string{
-							getDriverContainerNodeLabel(mod.Name): "",
+						Affinity: &v1.Affinity{
+							NodeAffinity: &v1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+									NodeSelectorTerms: []v1.NodeSelectorTerm{
+										{
+											MatchExpressions: []v1.NodeSelectorRequirement{
+												{
+													Key:      getDriverContainerNodeLabel(mod.Name),
+													Operator: v1.NodeSelectorOpExists,
+												},
+											},
+										},
+									},
+								},
+							},
 						},
 						PriorityClassName:  "system-node-critical",
 						ServiceAccountName: serviceAccountName,

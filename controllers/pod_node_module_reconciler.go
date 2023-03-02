@@ -70,7 +70,7 @@ func (pnmr *PodNodeModuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if !podutils.IsPodReady(&pod) || !pod.DeletionTimestamp.IsZero() {
 		logger.Info("Unlabeling node")
 
-		if err := pnmr.deleteLabel(ctx, nodeName, labelName); err != nil {
+		if err := pnmr.deleteLabel(ctx, nodeName, labelName, pod.Name); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not unlabel node %s: %v", nodeName, err)
 		}
 
@@ -91,7 +91,7 @@ func (pnmr *PodNodeModuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Info("Labeling node")
 
-	if err := pnmr.addLabel(ctx, nodeName, labelName); err != nil {
+	if err := pnmr.addLabel(ctx, nodeName, labelName, pod.Name); err != nil {
 		return ctrl.Result{}, fmt.Errorf("could not label node %s with %q: %v", nodeName, labelName, err)
 	}
 
@@ -119,7 +119,7 @@ func (pnmr *PodNodeModuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(pnmr)
 }
 
-func (pnmr *PodNodeModuleReconciler) addLabel(ctx context.Context, nodeName, labelName string) error {
+func (pnmr *PodNodeModuleReconciler) addLabel(ctx context.Context, nodeName, labelName, labelValue string) error {
 	node := v1.Node{}
 
 	if err := pnmr.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
@@ -132,7 +132,7 @@ func (pnmr *PodNodeModuleReconciler) addLabel(ctx context.Context, nodeName, lab
 		node.Labels = make(map[string]string, 1)
 	}
 
-	node.Labels[labelName] = ""
+	node.Labels[labelName] = labelValue
 
 	return pnmr.client.Patch(ctx, &node, client.MergeFrom(nodeCopy))
 }
@@ -145,7 +145,7 @@ func (pnmr *PodNodeModuleReconciler) deleteFinalizer(ctx context.Context, pod *v
 	return pnmr.client.Patch(ctx, pod, client.MergeFrom(podCopy))
 }
 
-func (pnmr *PodNodeModuleReconciler) deleteLabel(ctx context.Context, nodeName, labelName string) error {
+func (pnmr *PodNodeModuleReconciler) deleteLabel(ctx context.Context, nodeName, labelName, labelValue string) error {
 	node := v1.Node{}
 
 	if err := pnmr.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
@@ -154,7 +154,12 @@ func (pnmr *PodNodeModuleReconciler) deleteLabel(ctx context.Context, nodeName, 
 
 	nodeCopy := node.DeepCopy()
 
-	delete(node.Labels, labelName)
+	for k, v := range node.Labels {
+		if k == labelName && v == labelValue {
+			delete(node.Labels, k)
+			break
+		}
+	}
 
 	return pnmr.client.Patch(ctx, &node, client.MergeFrom(nodeCopy))
 }
