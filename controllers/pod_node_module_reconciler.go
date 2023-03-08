@@ -137,6 +137,8 @@ func (pnmr *PodNodeModuleReconciler) addLabel(ctx context.Context, nodeName, lab
 	return pnmr.client.Patch(ctx, &node, client.MergeFrom(nodeCopy))
 }
 
+// FIXME: add a .md file of changes for 2.0 in case we change the label
+// FIXME: merge into this PR the other PR changing the label?
 func (pnmr *PodNodeModuleReconciler) deleteFinalizer(ctx context.Context, pod *v1.Pod) error {
 	podCopy := pod.DeepCopy()
 
