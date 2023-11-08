@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/a8m/envsubst v1.4.2
 	github.com/budougumi0617/cmpmock v0.0.4
-	github.com/go-logr/logr v1.2.4
+	github.com/go-logr/logr v1.3.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-containerregistry v0.16.1
 	github.com/google/go-containerregistry/pkg/authn/kubernetes v0.0.0-20230523181351-c3f8a49229d3
@@ -21,7 +21,7 @@ require (
 	k8s.io/api v0.28.2
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
-	k8s.io/klog/v2 v2.100.1
+	k8s.io/klog/v2 v2.110.1
 	k8s.io/kubectl v0.28.2
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
 	open-cluster-management.io/api v0.12.0
