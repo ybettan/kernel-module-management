@@ -82,6 +82,10 @@ func main() {
 		if err = webhook.NewModuleValidator(logger).SetupWebhookWithManager(mgr); err != nil {
 			cmd.FatalError(setupLogger, err, "unable to create webhook", "webhook", "ModuleValidator")
 		}
+
+		if err = webhook.NewModuleDefaulter(logger).SetupWebhookWithManager(mgr); err != nil {
+			cmd.FatalError(setupLogger, err, "unable to create mutating webhook", "webhook", "ModuleDefaulter")
+		}
 	}
 
 	if enableManagedClusterModule {
@@ -89,6 +93,11 @@ func main() {
 
 		if err = hub.NewManagedClusterModuleValidator(logger).SetupWebhookWithManager(mgr); err != nil {
 			cmd.FatalError(setupLogger, err, "unable to create webhook", "webhook", "ManagedClusterModuleValidator")
+		}
+
+		moduleDefaulter := webhook.NewModuleDefaulter(logger)
+		if err = hub.NewManagedClusterModuleDefaulter(logger, moduleDefaulter).SetupWebhookWithManager(mgr); err != nil {
+			cmd.FatalError(setupLogger, err, "unable to create mutating webhook", "webhook", "ManagedClusterModuleDefaulter")
 		}
 	}
 
