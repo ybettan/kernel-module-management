@@ -88,5 +88,5 @@ func getImageMounter(cmd *cobra.Command) (worker.ImageMounter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not read pull secrets: %v", err)
 	}
-	return worker.NewRemoteImageMounter(worker.ImagesDir, keyChain, logger), nil
+	return worker.NewRemoteImageMounter(worker.ImagesDir, keyChain, logger)
 }

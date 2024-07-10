@@ -167,7 +167,8 @@ var _ = Describe("imageMounter_MountImage", func() {
 			HaveOccurred(),
 		)
 
-		rim := NewRemoteImageMounter(tmpDir, authn.NewMultiKeychain(), GinkgoLogr)
+		rim, err := NewRemoteImageMounter(tmpDir, authn.NewMultiKeychain(), GinkgoLogr)
+		Expect(err).NotTo(HaveOccurred())
 
 		res, err := rim.MountImage(context.Background(), remoteImageName, modConfig)
 		Expect(err).NotTo(HaveOccurred())

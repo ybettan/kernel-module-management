@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/cri-client/pkg/fake"
 )
 
 func sameFiles(a, b string) (bool, error) {
@@ -33,7 +35,7 @@ var _ = Describe("ImageMounter_mountOCIImage", func() {
 		ociImage, err := crane.Append(empty.Image, "testdata/archive.tar")
 		Expect(err).NotTo(HaveOccurred())
 
-		oimh := newOCIImageMounterHelper(GinkgoLogr)
+		oimh := newOCIImageMounterHelper(GinkgoLogr, nil)
 		err = oimh.mountOCIImage(ociImage, tmpDir)
 
 		Expect(err).NotTo(HaveOccurred())
@@ -61,5 +63,28 @@ var _ = Describe("ImageMounter_mountOCIImage", func() {
 		).To(
 			BeTrue(),
 		)
+	})
+})
+
+var _ = FDescribe("ImageMounter_pullOCIImage", func() {
+
+	It("should fail if it fails to pull the image", func() {
+
+		fakeImageService := fake.NewFakeRemoteRuntime().ImageService
+
+		fakeImages := []string{"quay.io/org/kmm-kmod:tag1", "quay.io/org/kmm-kmod:tag2"}
+		fakeImageService.SetFakeImages(fakeImages)
+
+		//imgs, err := fakeImageService.ListImages(ctx, nil)
+		//if err != nil {
+		//	return nil, fmt.Errorf("could not list images: %v", err)
+		//}
+
+		oimh := newOCIImageMounterHelper(GinkgoLogr, fakeImageService)
+		_, err := oimh.pullOCIImage(context.Background(), GinkgoLogr, "quay.io/org/kmm-kmod:no-such-tag")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("should work as expected", func() {
 	})
 })

@@ -12,6 +12,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	logr "github.com/go-logr/logr"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	v1beta1 "github.com/kubernetes-sigs/kernel-module-management/api/v1beta1"
 	gomock "go.uber.org/mock/gomock"
@@ -90,4 +91,19 @@ func (m *MockociImageMounterHelperAPI) mountOCIImage(image v1.Image, dstDirFS st
 func (mr *MockociImageMounterHelperAPIMockRecorder) mountOCIImage(image, dstDirFS any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "mountOCIImage", reflect.TypeOf((*MockociImageMounterHelperAPI)(nil).mountOCIImage), image, dstDirFS)
+}
+
+// pullOCIImage mocks base method.
+func (m *MockociImageMounterHelperAPI) pullOCIImage(ctx context.Context, logger logr.Logger, imageName string) (v1.Image, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "pullOCIImage", ctx, logger, imageName)
+	ret0, _ := ret[0].(v1.Image)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// pullOCIImage indicates an expected call of pullOCIImage.
+func (mr *MockociImageMounterHelperAPIMockRecorder) pullOCIImage(ctx, logger, imageName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "pullOCIImage", reflect.TypeOf((*MockociImageMounterHelperAPI)(nil).pullOCIImage), ctx, logger, imageName)
 }

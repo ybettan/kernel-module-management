@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
 	kmmv1beta1 "github.com/kubernetes-sigs/kernel-module-management/api/v1beta1"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/utils"
+	"go.opentelemetry.io/otel/sdk/trace"
+	cri "k8s.io/cri-client/pkg"
+	//FIXME: use a released version rather than a commit sha
 )
 
 type remoteImageMounter struct {
@@ -20,14 +24,28 @@ type remoteImageMounter struct {
 	logger         logr.Logger
 }
 
-func NewRemoteImageMounter(baseDir string, keyChain authn.Keychain, logger logr.Logger) ImageMounter {
-	ociImageHelper := newOCIImageMounterHelper(logger)
-	return &remoteImageMounter{
+func NewRemoteImageMounter(baseDir string, keyChain authn.Keychain, logger logr.Logger) (ImageMounter, error) {
+
+	//FIXME: get the endpoint from
+	// ```
+	// oc get node/minikube -o yaml | yq '.metadata.annotations["kubeadm.alpha.kubernetes.io/cri-socket"]'
+	// ```
+	runtimeEndpoint := "unix:///var/run/crio/crio.sock"
+	imageService, err := cri.NewRemoteImageService(runtimeEndpoint, 1*time.Minute, trace.NewTracerProvider(), &logger)
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to the image-service at %s: %v", runtimeEndpoint, err)
+	}
+	logger.Info("Successfully connected to the image-service", "endpoint", runtimeEndpoint)
+
+	ociImageHelper := newOCIImageMounterHelper(logger, imageService)
+	remoteImgMnt := &remoteImageMounter{
 		ociImageHelper: ociImageHelper,
 		baseDir:        baseDir,
 		keyChain:       keyChain,
 		logger:         logger,
 	}
+
+	return remoteImgMnt, nil
 }
 
 func (rim *remoteImageMounter) MountImage(ctx context.Context, imageName string, cfg *kmmv1beta1.ModuleConfig) (string, error) {
@@ -97,7 +115,7 @@ func (rim *remoteImageMounter) MountImage(ctx context.Context, imageName string,
 
 	logger.V(1).Info("Pulling image")
 
-	img, err := crane.Pull(imageName, opts...)
+	img, err := rim.ociImageHelper.pullOCIImage(ctx, logger, imageName)
 	if err != nil {
 		return "", fmt.Errorf("could not pull %s: %v", imageName, err)
 	}
