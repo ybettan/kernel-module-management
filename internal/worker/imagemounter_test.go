@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/opencontainers/umoci"
 	"k8s.io/cri-client/pkg/fake"
 )
 
@@ -66,25 +68,37 @@ var _ = Describe("ImageMounter_mountOCIImage", func() {
 	})
 })
 
-var _ = FDescribe("ImageMounter_pullOCIImage", func() {
+var _ = Describe("ImageMounter_pullOCIImage", func() {
 
 	It("should fail if it fails to pull the image", func() {
 
 		fakeImageService := fake.NewFakeRemoteRuntime().ImageService
-
-		fakeImages := []string{"quay.io/org/kmm-kmod:tag1", "quay.io/org/kmm-kmod:tag2"}
-		fakeImageService.SetFakeImages(fakeImages)
-
-		//imgs, err := fakeImageService.ListImages(ctx, nil)
-		//if err != nil {
-		//	return nil, fmt.Errorf("could not list images: %v", err)
-		//}
+		fakeImageService.InjectError("PullImage", errors.New("random error"))
 
 		oimh := newOCIImageMounterHelper(GinkgoLogr, fakeImageService)
 		_, err := oimh.pullOCIImage(context.Background(), GinkgoLogr, "quay.io/org/kmm-kmod:no-such-tag")
 		Expect(err).To(HaveOccurred())
 	})
 
-	It("should work as expected", func() {
+	//FIt("should work as expected", func() {
+
+	//	manifestFile, err := os.Open("/home/ybettan/go/src/github.com/storage/overlay-images/6c8ef9aa7b75b03af093f5e48c6c7c319f92736f319b7d210f5d9f7b6965159a/manifest")
+	//	Expect(err).NotTo(HaveOccurred())
+
+	//	manifest, err := v1.ParseManifest(manifestFile)
+	//	Expect(err).NotTo(HaveOccurred())
+
+	//})
+
+	FIt("umoci", func() {
+
+		engine, err := umoci.OpenLayout("image-spec")
+		Expect(err).NotTo(HaveOccurred())
+
+		digests, err := engine.ListBlobs(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+
+		fmt.Println(digests)
 	})
+
 })

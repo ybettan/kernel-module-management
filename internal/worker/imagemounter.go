@@ -99,7 +99,7 @@ func (oimh *ociImageMounterHelper) mountOCIImage(ociImage v1.Image, dstDirFS str
 func (oimh *ociImageMounterHelper) pullOCIImage(ctx context.Context, logger logr.Logger, imageName string) (v1.Image, error) {
 
 	imgSpec := &runtimeapi.ImageSpec{Image: imageName}
-	_, err := oimh.imageService.PullImage(ctx, imgSpec, nil, nil)
+	_, err := oimh.imageService.PullImage(ctx, imgSpec, nil, nil) //FIXME: add auth-config
 	if err != nil {
 		return nil, fmt.Errorf("could not pull image %s: %v", imageName, err)
 	}
