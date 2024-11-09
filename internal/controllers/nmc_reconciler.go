@@ -1053,6 +1053,12 @@ func (p *podManagerImpl) baseWorkerPod(ctx context.Context, nmc client.Object, i
 	}
 
 	nodeName := nmc.GetName()
+	initContainerVolumeMounts := []v1.VolumeMount{
+		{
+			Name:      volNameTmp,
+			MountPath: sharedFilesDir,
+		},
+	}
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: item.Namespace,
@@ -1072,12 +1078,7 @@ func (p *podManagerImpl) baseWorkerPod(ctx context.Context, nmc client.Object, i
 					ImagePullPolicy: moduleConfig.ImagePullPolicy,
 					Command:         []string{"/bin/sh", "-c"},
 					Args:            []string{""},
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      volNameTmp,
-							MountPath: sharedFilesDir,
-						},
-					},
+					VolumeMounts:    append(initContainerVolumeMounts, psvm...),
 					Resources: v1.ResourceRequirements{
 						Requests: requests,
 						Limits:   limits,
