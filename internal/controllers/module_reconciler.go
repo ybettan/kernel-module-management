@@ -12,6 +12,7 @@ import (
 	"github.com/kubernetes-sigs/kernel-module-management/internal/constants"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/filter"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/meta"
+	"github.com/kubernetes-sigs/kernel-module-management/internal/mic"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/module"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/nmc"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/node"
@@ -52,6 +53,7 @@ type ModuleReconciler struct {
 	nsLabeler   namespaceLabeler
 	reconHelper moduleReconcilerHelperAPI
 	nodeAPI     node.Node
+	micAPI      mic.ModuleImagesConfigAPI
 }
 
 func NewModuleReconciler(client client.Client,
@@ -60,6 +62,7 @@ func NewModuleReconciler(client client.Client,
 	nmcHelper nmc.Helper,
 	filter *filter.Filter,
 	nodeAPI node.Node,
+	micAPI mic.ModuleImagesConfigAPI,
 	scheme *runtime.Scheme) *ModuleReconciler {
 	reconHelper := newModuleReconcilerHelper(client, kernelAPI, registryAPI, nmcHelper, scheme)
 	return &ModuleReconciler{
@@ -67,6 +70,7 @@ func NewModuleReconciler(client client.Client,
 		nsLabeler:   newNamespaceLabeler(client),
 		reconHelper: reconHelper,
 		nodeAPI:     nodeAPI,
+		micAPI:      micAPI,
 	}
 }
 
@@ -101,6 +105,16 @@ func (mr *ModuleReconciler) Reconcile(ctx context.Context, mod *kmmv1beta1.Modul
 	targetedNodes, err := mr.nodeAPI.GetNodesListBySelector(ctx, mod.Spec.Selector, mod.Spec.Tolerations)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get list of nodes by selector: %v", err)
+	}
+
+	moduleImagesSpecs, err := mr.reconHelper.prepareImages(ctx, mod, targetedNodes)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to prepare moduleImagesConfig's images for module %s/%s: %v",
+			mod.Namespace, mod.Name, err)
+	}
+
+	if err := mr.micAPI.HandleModuleImagesConfig(ctx, mod.Name, mod.Namespace, moduleImagesSpecs, mod.Spec.ImageRepoSecret); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to handle moduleImagesConfig for module %s/%s: %v", mod.Namespace, mod.Name, err)
 	}
 
 	currentNMCs, err := mr.reconHelper.getNMCsByModuleSet(ctx, mod)
@@ -161,6 +175,7 @@ type moduleReconcilerHelperAPI interface {
 	finalizeModule(ctx context.Context, mod *kmmv1beta1.Module) error
 	getNMCsByModuleSet(ctx context.Context, mod *kmmv1beta1.Module) (sets.Set[string], error)
 	prepareSchedulingData(ctx context.Context, mod *kmmv1beta1.Module, targetedNodes []v1.Node, currentNMCs sets.Set[string]) (map[string]schedulingData, []error)
+	prepareImages(ctx context.Context, mod *kmmv1beta1.Module, targetedNodes []v1.Node) ([]kmmv1beta1.ModuleImageSpec, error)
 	enableModuleOnNode(ctx context.Context, mld *api.ModuleLoaderData, node *v1.Node) error
 	disableModuleOnNode(ctx context.Context, modNamespace, modName, nodeName string) error
 	moduleUpdateWorkerPodsStatus(ctx context.Context, mod *kmmv1beta1.Module, targetedNodes []v1.Node) error
@@ -313,6 +328,37 @@ func (mrh *moduleReconcilerHelper) prepareSchedulingData(ctx context.Context,
 		result[nmcName] = schedulingData{action: actionDelete}
 	}
 	return result, errs
+}
+
+func (mrh *moduleReconcilerHelper) prepareImages(ctx context.Context, mod *kmmv1beta1.Module,
+	targetedNodes []v1.Node) ([]kmmv1beta1.ModuleImageSpec, error) {
+
+	var (
+		res    []kmmv1beta1.ModuleImageSpec
+		errs   []error
+		logger = log.FromContext(ctx)
+	)
+	for _, node := range targetedNodes {
+		kernelVersion := strings.TrimSuffix(node.Status.NodeInfo.KernelVersion, "+")
+		mld, err := mrh.kernelAPI.GetModuleLoaderDataForKernel(mod, kernelVersion)
+		if err != nil {
+			if !errors.Is(err, module.ErrNoMatchingKernelMapping) {
+				logger.Info(utils.WarnString(fmt.Sprintf("internal errors while fetching kernel mapping for kernel %s: %v",
+					kernelVersion, err)))
+				errs = append(errs, err)
+			}
+			// node is not targeted by module
+			continue
+		}
+		mis := kmmv1beta1.ModuleImageSpec{
+			Image: mld.ContainerImage,
+			Build: mld.Build,
+			Sign:  mld.Sign,
+		}
+		res = append(res, mis)
+	}
+
+	return res, errors.Join(errs...)
 }
 
 func (mrh *moduleReconcilerHelper) enableModuleOnNode(ctx context.Context, mld *api.ModuleLoaderData, node *v1.Node) error {
