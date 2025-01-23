@@ -113,7 +113,9 @@ func (mr *ModuleReconciler) Reconcile(ctx context.Context, mod *kmmv1beta1.Modul
 			mod.Namespace, mod.Name, err)
 	}
 
-	if err := mr.micAPI.HandleModuleImagesConfig(ctx, mod.Name, mod.Namespace, moduleImagesSpecs, mod.Spec.ImageRepoSecret); err != nil {
+	if err := mr.micAPI.HandleModuleImagesConfig(ctx, mod.Name, mod.Namespace, moduleImagesSpecs,
+		mod.Spec.ImageRepoSecret, mod); err != nil {
+
 		return ctrl.Result{}, fmt.Errorf("failed to handle moduleImagesConfig for module %s/%s: %v", mod.Namespace, mod.Name, err)
 	}
 

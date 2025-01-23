@@ -15,6 +15,7 @@ import (
 	v1beta1 "github.com/kubernetes-sigs/kernel-module-management/api/v1beta1"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
+	v10 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // MockModuleImagesConfigAPI is a mock of ModuleImagesConfigAPI interface.
@@ -41,15 +42,15 @@ func (m *MockModuleImagesConfigAPI) EXPECT() *MockModuleImagesConfigAPIMockRecor
 }
 
 // HandleModuleImagesConfig mocks base method.
-func (m *MockModuleImagesConfigAPI) HandleModuleImagesConfig(ctx context.Context, name, ns string, images []v1beta1.ModuleImageSpec, imageRepoSecret *v1.LocalObjectReference) error {
+func (m *MockModuleImagesConfigAPI) HandleModuleImagesConfig(ctx context.Context, name, ns string, images []v1beta1.ModuleImageSpec, imageRepoSecret *v1.LocalObjectReference, owner v10.Object) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleModuleImagesConfig", ctx, name, ns, images, imageRepoSecret)
+	ret := m.ctrl.Call(m, "HandleModuleImagesConfig", ctx, name, ns, images, imageRepoSecret, owner)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // HandleModuleImagesConfig indicates an expected call of HandleModuleImagesConfig.
-func (mr *MockModuleImagesConfigAPIMockRecorder) HandleModuleImagesConfig(ctx, name, ns, images, imageRepoSecret any) *gomock.Call {
+func (mr *MockModuleImagesConfigAPIMockRecorder) HandleModuleImagesConfig(ctx, name, ns, images, imageRepoSecret, owner any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleModuleImagesConfig", reflect.TypeOf((*MockModuleImagesConfigAPI)(nil).HandleModuleImagesConfig), ctx, name, ns, images, imageRepoSecret)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleModuleImagesConfig", reflect.TypeOf((*MockModuleImagesConfigAPI)(nil).HandleModuleImagesConfig), ctx, name, ns, images, imageRepoSecret, owner)
 }
