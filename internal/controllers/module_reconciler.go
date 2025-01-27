@@ -107,13 +107,13 @@ func (mr *ModuleReconciler) Reconcile(ctx context.Context, mod *kmmv1beta1.Modul
 		return ctrl.Result{}, fmt.Errorf("failed to get list of nodes by selector: %v", err)
 	}
 
-	moduleImagesSpecs, err := mr.reconHelper.prepareImages(ctx, mod, targetedNodes)
+	images, err := mr.reconHelper.prepareImages(ctx, mod, targetedNodes)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to prepare moduleImagesConfig's images for module %s/%s: %v",
 			mod.Namespace, mod.Name, err)
 	}
 
-	if err := mr.micAPI.HandleModuleImagesConfig(ctx, mod.Name, mod.Namespace, moduleImagesSpecs,
+	if err := mr.micAPI.HandleModuleImagesConfig(ctx, mod.Name, mod.Namespace, images,
 		mod.Spec.ImageRepoSecret, mod); err != nil {
 
 		return ctrl.Result{}, fmt.Errorf("failed to handle moduleImagesConfig for module %s/%s: %v", mod.Namespace, mod.Name, err)
@@ -347,7 +347,7 @@ func (mrh *moduleReconcilerHelper) prepareImages(ctx context.Context, mod *kmmv1
 			if !errors.Is(err, module.ErrNoMatchingKernelMapping) {
 				logger.Info(utils.WarnString(fmt.Sprintf("internal errors while fetching kernel mapping for kernel %s: %v",
 					kernelVersion, err)))
-				errs = append(errs, err)
+				errs = append(errs, fmt.Errorf("failed to get moduleLoaderData for kernel %s: %v", kernelVersion, err))
 			}
 			// node is not targeted by module
 			continue
