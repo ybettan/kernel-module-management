@@ -20,8 +20,6 @@ var _ = Describe("GetStatus", func() {
 	var (
 		ctrl                    *gomock.Controller
 		clnt                    *client.MockClient
-		mockMaker               *MockMaker
-		mockSigner              *MockSigner
 		mockBuildSignPodManager *MockBuildSignPodManager
 		mgr                     *podManager
 	)
@@ -35,13 +33,9 @@ var _ = Describe("GetStatus", func() {
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
 		clnt = client.NewMockClient(ctrl)
-		mockMaker = NewMockMaker(ctrl)
-		mockSigner = NewMockSigner(ctrl)
 		mockBuildSignPodManager = NewMockBuildSignPodManager(ctrl)
 		mgr = &podManager{
 			client:              clnt,
-			maker:               mockMaker,
-			signer:              mockSigner,
 			buildSignPodManager: mockBuildSignPodManager,
 		}
 	})
@@ -106,8 +100,6 @@ var _ = Describe("Sync", func() {
 	var (
 		ctrl                    *gomock.Controller
 		clnt                    *client.MockClient
-		mockMaker               *MockMaker
-		mockSigner              *MockSigner
 		mockBuildSignPodManager *MockBuildSignPodManager
 		mgr                     *podManager
 	)
@@ -121,13 +113,9 @@ var _ = Describe("Sync", func() {
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
 		clnt = client.NewMockClient(ctrl)
-		mockMaker = NewMockMaker(ctrl)
-		mockSigner = NewMockSigner(ctrl)
 		mockBuildSignPodManager = NewMockBuildSignPodManager(ctrl)
 		mgr = &podManager{
 			client:              clnt,
-			maker:               mockMaker,
-			signer:              mockSigner,
 			buildSignPodManager: mockBuildSignPodManager,
 		}
 	})
@@ -142,19 +130,19 @@ var _ = Describe("Sync", func() {
 
 	It("MakePodTemplate failed", func() {
 		By("test build action")
-		mockMaker.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, true).Return(nil, fmt.Errorf("some error"))
+		mockBuildSignPodManager.EXPECT().MakeBuildResourceTemplate(ctx, testMLD, &testMBSC, true).Return(nil, fmt.Errorf("some error"))
 		err := mgr.Sync(ctx, testMLD, true, kmmv1beta1.BuildImage, &testMBSC)
 		Expect(err).To(HaveOccurred())
 
 		By("test sign action")
-		mockSigner.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, true).Return(nil, fmt.Errorf("some error"))
+		mockBuildSignPodManager.EXPECT().MakeSignResourceTemplate(ctx, testMLD, &testMBSC, true).Return(nil, fmt.Errorf("some error"))
 		err = mgr.Sync(ctx, testMLD, true, kmmv1beta1.SignImage, &testMBSC)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("GetModulePodByKernel failed", func() {
 		gomock.InOrder(
-			mockMaker.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, true).Return(nil, nil),
+			mockBuildSignPodManager.EXPECT().MakeBuildResourceTemplate(ctx, testMLD, &testMBSC, true).Return(nil, nil),
 			mockBuildSignPodManager.EXPECT().GetModulePodByKernel(ctx, mbscName, mbscNamespace, kernelVersion, PodTypeBuild, &testMBSC).
 				Return(nil, fmt.Errorf("some error")),
 		)
@@ -165,7 +153,7 @@ var _ = Describe("Sync", func() {
 	It("CreatePod failed", func() {
 		testTemplate := v1.Pod{}
 		gomock.InOrder(
-			mockMaker.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, true).Return(&testTemplate, nil),
+			mockBuildSignPodManager.EXPECT().MakeBuildResourceTemplate(ctx, testMLD, &testMBSC, true).Return(&testTemplate, nil),
 			mockBuildSignPodManager.EXPECT().GetModulePodByKernel(ctx, mbscName, mbscNamespace, kernelVersion, PodTypeBuild, &testMBSC).
 				Return(nil, ErrNoMatchingPod),
 			mockBuildSignPodManager.EXPECT().CreatePod(ctx, &testTemplate).Return(fmt.Errorf("some error")),
@@ -178,7 +166,7 @@ var _ = Describe("Sync", func() {
 		testTemplate := v1.Pod{}
 		testPod := v1.Pod{}
 		gomock.InOrder(
-			mockMaker.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, true).Return(&testTemplate, nil),
+			mockBuildSignPodManager.EXPECT().MakeBuildResourceTemplate(ctx, testMLD, &testMBSC, true).Return(&testTemplate, nil),
 			mockBuildSignPodManager.EXPECT().GetModulePodByKernel(ctx, mbscName, mbscNamespace, kernelVersion, PodTypeBuild, &testMBSC).
 				Return(&testPod, nil),
 			mockBuildSignPodManager.EXPECT().IsPodChanged(&testPod, &testTemplate).Return(false, fmt.Errorf("some error")),
@@ -191,7 +179,7 @@ var _ = Describe("Sync", func() {
 		testTemplate := v1.Pod{}
 		testPod := v1.Pod{}
 		gomock.InOrder(
-			mockMaker.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, true).Return(&testTemplate, nil),
+			mockBuildSignPodManager.EXPECT().MakeBuildResourceTemplate(ctx, testMLD, &testMBSC, true).Return(&testTemplate, nil),
 			mockBuildSignPodManager.EXPECT().GetModulePodByKernel(ctx, mbscName, mbscNamespace, kernelVersion, PodTypeBuild, &testMBSC).
 				Return(&testPod, nil),
 			mockBuildSignPodManager.EXPECT().IsPodChanged(&testPod, &testTemplate).Return(true, nil),
@@ -212,9 +200,9 @@ var _ = Describe("Sync", func() {
 		}
 
 		if buildAction {
-			mockMaker.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, pushImage).Return(&testPodTemplate, nil)
+			mockBuildSignPodManager.EXPECT().MakeBuildResourceTemplate(ctx, testMLD, &testMBSC, pushImage).Return(&testPodTemplate, nil)
 		} else {
-			mockSigner.EXPECT().MakePodTemplate(ctx, testMLD, &testMBSC, pushImage).Return(&testPodTemplate, nil)
+			mockBuildSignPodManager.EXPECT().MakeSignResourceTemplate(ctx, testMLD, &testMBSC, pushImage).Return(&testPodTemplate, nil)
 		}
 		var getPodError error
 		if !podExists {
@@ -247,8 +235,6 @@ var _ = Describe("GarbageCollect", func() {
 	var (
 		ctrl                    *gomock.Controller
 		clnt                    *client.MockClient
-		mockMaker               *MockMaker
-		mockSigner              *MockSigner
 		mockBuildSignPodManager *MockBuildSignPodManager
 		mgr                     *podManager
 	)
@@ -262,13 +248,9 @@ var _ = Describe("GarbageCollect", func() {
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
 		clnt = client.NewMockClient(ctrl)
-		mockMaker = NewMockMaker(ctrl)
-		mockSigner = NewMockSigner(ctrl)
 		mockBuildSignPodManager = NewMockBuildSignPodManager(ctrl)
 		mgr = &podManager{
 			client:              clnt,
-			maker:               mockMaker,
-			signer:              mockSigner,
 			buildSignPodManager: mockBuildSignPodManager,
 		}
 	})
