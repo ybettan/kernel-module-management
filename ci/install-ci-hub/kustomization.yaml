@@ -6,37 +6,37 @@ resources:
 
 images:
 - name: gcr.io/k8s-staging-kmm/kernel-module-management-operator-hub
-  newName: kmm-hub
-  newTag: local
-- name: gcr.io/k8s-staging-kmm/kernel-module-management-signimage
-  newName: host.minikube.internal:5000/kmm/signimage
-  newTag: local
-- name: gcr.io/k8s-staging-kmm/kernel-module-management-webhook-server
-  newName: kmm-webhook-server
-  newTag: local
+  newName: quay.io/ybettan/kernel-module-management-hub
+  newTag: hub-update
+#- name: gcr.io/k8s-staging-kmm/kernel-module-management-signimage
+#  newName: host.minikube.internal:5000/kmm/signimage
+#  newTag: local
+#- name: gcr.io/k8s-staging-kmm/kernel-module-management-webhook-server
+#  newName: kmm-webhook-server
+#  newTag: local
 
-patches:
-- patch: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: controller
-      namespace: system
-    spec:
-      template:
-        spec:
-          containers:
-            - name: manager
-              imagePullPolicy: Never
-- patch: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: webhook
-      namespace: system
-    spec:
-      template:
-        spec:
-          containers:
-            - name: webhook-server
-              imagePullPolicy: Never
+#patches:
+#- patch: |
+#    apiVersion: apps/v1
+#    kind: Deployment
+#    metadata:
+#      name: controller
+#      namespace: system
+#    spec:
+#      template:
+#        spec:
+#          containers:
+#            - name: manager
+#              imagePullPolicy: Never
+#- patch: |
+#    apiVersion: apps/v1
+#    kind: Deployment
+#    metadata:
+#      name: webhook
+#      namespace: system
+#    spec:
+#      template:
+#        spec:
+#          containers:
+#            - name: webhook-server
+#              imagePullPolicy: Never
