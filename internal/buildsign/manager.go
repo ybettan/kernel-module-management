@@ -2,11 +2,20 @@ package buildsign
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
+	"go.etcd.io/etcd/client/v2"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/apex/log"
 	kmmv1beta1 "github.com/kubernetes-sigs/kernel-module-management/api/v1beta1"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/api"
+	"github.com/kubernetes-sigs/kernel-module-management/internal/kernel"
+	"github.com/kubernetes-sigs/kernel-module-management/internal/module"
+	"github.com/kubernetes-sigs/kernel-module-management/internal/utils"
 )
 
 //go:generate mockgen -source=manager.go -package=buildsign -destination=mock_manager.go
@@ -16,4 +25,127 @@ type Manager interface {
 		action kmmv1beta1.BuildOrSignAction, owner metav1.Object) (kmmv1beta1.BuildOrSignStatus, error)
 	Sync(ctx context.Context, mld *api.ModuleLoaderData, pushImage bool, action kmmv1beta1.BuildOrSignAction, owner metav1.Object) error
 	GarbageCollect(ctx context.Context, name, namespace string, action kmmv1beta1.BuildOrSignAction, owner metav1.Object) ([]string, error)
+}
+
+type manager struct {
+	client                   client.Client
+	buildSignResourceManager BuildSignResourceManager
+}
+
+func NewManager(client client.Client, combiner module.Combiner, scheme *runtime.Scheme) buildsign.Manager {
+	buildSignResourceManager := NewBuildSignResourceManager(client, combiner, scheme)
+	return &manager{
+		client:                   client,
+		buildSignResourceManager: buildSignResourceManager,
+	}
+}
+
+func (m *manager) GetStatus(ctx context.Context, name, namespace, kernelVersion string,
+	action kmmv1beta1.BuildOrSignAction, owner metav1.Object) (kmmv1beta1.BuildOrSignStatus, error) {
+
+	normalizedKernel := kernel.NormalizeVersion(kernelVersion)
+	foundResource, err := m.buildSignResourceManager.GetBuildSignResourceByKernel(ctx, name, namespace, normalizedKernel, action, owner)
+	if err != nil {
+		if !errors.Is(err, buildsign.ErrNoMatchingBuildSignResource) {
+			return kmmv1beta1.BuildOrSignStatus(""), fmt.Errorf("failed to get resource %s/%s, action %s: %v",
+				namespace, name, action, err)
+		}
+		return kmmv1beta1.BuildOrSignStatus(""), nil
+	}
+	status, err := m.buildSignResourceManager.GetBuildSignResourceStatus(foundResource)
+	if err != nil {
+		return kmmv1beta1.BuildOrSignStatus(""), fmt.Errorf("failed to get status for the resource %s/%s, action %s: %v",
+			foundResource.Namespace, foundResource.Name, action, err)
+	}
+	switch status {
+	case StatusCompleted:
+		return kmmv1beta1.ActionSuccess, nil
+	case StatusFailed:
+		return kmmv1beta1.ActionFailure, nil
+	}
+
+	// any other status means the pod is still not finished, returning empty status
+	return kmmv1beta1.BuildOrSignStatus(""), nil
+}
+
+func (m *manager) Sync(ctx context.Context, mld *api.ModuleLoaderData, pushImage bool, action kmmv1beta1.BuildOrSignAction,
+	owner metav1.Object) error {
+
+	logger := log.FromContext(ctx)
+	var (
+		resourceTemplate runtime.Object
+		err              error
+	)
+	switch action {
+	case kmmv1beta1.BuildImage:
+		logger.Info("Building in-cluster")
+		resourceTemplate, err = m.buildSignResourceManager.MakeBuildResourceTemplate(ctx, mld, owner, pushImage)
+	case kmmv1beta1.SignImage:
+		logger.Info("Signing in-cluster")
+		resourceTemplate, err = m.buildSignResourceManager.MakeSignResourceTemplate(ctx, mld, owner, pushImage)
+	default:
+		return fmt.Errorf("invalid action %s", action)
+	}
+
+	if err != nil {
+		return fmt.Errorf("could not make the resource's template template: %v", err)
+	}
+
+	resource, err := m.buildSignResourceManager.GetBuildSignResourceByKernel(ctx, mld.Name, mld.Namespace, mld.KernelNormalizedVersion,
+		action, owner)
+
+	if err != nil {
+		if !errors.Is(err, ErrNoMatchingBuildSignResource) {
+			return fmt.Errorf("error getting the %s resource: %v", action, err)
+		}
+
+		logger.Info("Creating resource")
+		err = m.buildSignResourceManager.CreateBuildSignResource(ctx, resourceTemplate)
+		if err != nil {
+			return fmt.Errorf("could not create resource: %v", err)
+		}
+
+		return nil
+	}
+
+	changed, err := m.buildSignResourceManager.IsBuildSignResourceChanged(resource, resourceTemplate)
+	if err != nil {
+		return fmt.Errorf("could not determine if the resource has changed: %v", err)
+	}
+
+	if changed {
+		logger.Info("The module's spec has been changed, deleting the current resource so a new one can be created",
+			"name", resource.Name, "action", action)
+		err = m.buildSignResourceManager.DeleteBuildSignResource(ctx, resource)
+		if err != nil {
+			logger.Info(utils.WarnString(fmt.Sprintf("failed to delete %s resource %s: %v", action, resource.Name, err)))
+		}
+	}
+
+	return nil
+}
+
+func (m *manager) GarbageCollect(ctx context.Context, name, namespace string, action kmmv1beta1.BuildOrSignAction,
+	owner metav1.Object) ([]string, error) {
+
+	resources, err := m.buildSignResourceManager.GetModuleResources(ctx, name, namespace, action, owner)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %s resources for mbsc %s/%s: %v", action, namespace, name, err)
+	}
+
+	logger := log.FromContext(ctx)
+	errs := make([]error, 0, len(resources))
+	deleteResourceNames := make([]string, 0, len(resources))
+	for _, obj := range resources {
+		if obj.Status.Phase == v1.PodSucceeded {
+			err = m.buildSignPodManager.DeletePod(ctx, &obj)
+			errs = append(errs, err)
+			if err != nil {
+				logger.Info(utils.WarnString("failed to delete %s resource %s in garbage collection: %v"), action, resource.Name, err)
+				continue
+			}
+			deleteResourceNames = append(deleteResourceNames, resource.Name)
+		}
+	}
+	return deleteResourceNames, errors.Join(errs...)
 }

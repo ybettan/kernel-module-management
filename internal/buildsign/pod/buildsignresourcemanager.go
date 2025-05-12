@@ -20,10 +20,10 @@ import (
 	"github.com/kubernetes-sigs/kernel-module-management/internal/module"
 )
 
-//const (
-//	dockerfileAnnotationKey = "dockerfile"
-//	dockerfileVolumeName    = "dockerfile"
-//)
+const (
+	dockerfileAnnotationKey = "dockerfile"
+	dockerfileVolumeName    = "dockerfile"
+)
 
 type buildSignResourceManager struct {
 	client   client.Client
@@ -66,7 +66,7 @@ func (bsrm *buildSignResourceManager) MakeBuildResourceTemplate(ctx context.Cont
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: mld.Name + "-build-",
 			Namespace:    mld.Namespace,
-			Labels:       resourceLabels(mld.Name, mld.KernelNormalizedVersion, string(kmmv1beta1.BuildImage)),
+			Labels:       resourceLabels(mld.Name, mld.KernelNormalizedVersion, kmmv1beta1.BuildImage),
 			Annotations:  map[string]string{constants.PodHashAnnotation: fmt.Sprintf("%d", buildSpecHash)},
 			Finalizers:   []string{constants.GCDelayFinalizer, constants.JobEventFinalizer},
 		},
@@ -120,7 +120,7 @@ func (bsrm *buildSignResourceManager) MakeSignResourceTemplate(ctx context.Conte
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: mld.Name + "-sign-",
 			Namespace:    mld.Namespace,
-			Labels:       resourceLabels(mld.Name, mld.KernelNormalizedVersion, string(kmmv1beta1.SignImage)),
+			Labels:       resourceLabels(mld.Name, mld.KernelNormalizedVersion, kmmv1beta1.SignImage),
 			Annotations: map[string]string{
 				constants.PodHashAnnotation: fmt.Sprintf("%d", signSpecHash),
 				dockerfileAnnotationKey:     buf.String(),
@@ -141,7 +141,7 @@ func (bsrm *buildSignResourceManager) CreateBuildSignResource(ctx context.Contex
 
 	resource, ok := obj.(*v1.Pod)
 	if !ok {
-		return errors.New("the resource cannot be converted to a pod")
+		return errors.New("the resource cannot be converted to the corect resource")
 	}
 	err := bsrm.client.Create(ctx, resource)
 	if err != nil {
@@ -154,7 +154,7 @@ func (bsrm *buildSignResourceManager) DeleteBuildSignResource(ctx context.Contex
 
 	resource, ok := obj.(*v1.Pod)
 	if !ok {
-		return errors.New("the resource cannot be converted to a pod")
+		return errors.New("the resource cannot be converted to the correct resource")
 	}
 	opts := []client.DeleteOption{
 		client.PropagationPolicy(metav1.DeletePropagationBackground),
@@ -162,102 +162,75 @@ func (bsrm *buildSignResourceManager) DeleteBuildSignResource(ctx context.Contex
 	return bsrm.client.Delete(ctx, resource, opts...)
 }
 
-//func (bsrm *buildSignResourceManager) IsPodChanged(existingPod *v1.Pod, newPod *v1.Pod) (bool, error) {
-//	existingAnnotations := existingPod.GetAnnotations()
-//	newAnnotations := newPod.GetAnnotations()
-//	if existingAnnotations == nil {
-//		return false, fmt.Errorf("annotations are not present in the existing pod %s", existingPod.Name)
-//	}
-//	if existingAnnotations[constants.PodHashAnnotation] == newAnnotations[constants.PodHashAnnotation] {
-//		return false, nil
-//	}
-//	return true, nil
-//}
-//
-//
-//func (bsrm *buildSignResourceManager) GetModulePodByKernel(ctx context.Context, modName, namespace, targetKernel, podType string, owner metav1.Object) (*v1.Pod, error) {
-//	matchLabels := moduleKernelLabels(modName, targetKernel, podType)
-//	pods, err := bsrm.getPods(ctx, namespace, matchLabels)
-//	if err != nil {
-//		return nil, fmt.Errorf("failed to get module %s, pods by kernel %s: %v", modName, targetKernel, err)
-//	}
-//
-//	// filter pods by owner, since they could have been created by the preflight
-//	// when checking that specific module
-//	moduleOwnedPods := filterPodsByOwner(pods, owner)
-//	numFoundPods := len(moduleOwnedPods)
-//	if numFoundPods == 0 {
-//		return nil, ErrNoMatchingPod
-//	} else if numFoundPods > 1 {
-//		return nil, fmt.Errorf("expected 0 or 1 %s pod, got %d", podType, numFoundPods)
-//	}
-//
-//	return &moduleOwnedPods[0], nil
-//}
-//
-//func (bsrm *buildSignResourceManager) GetModulePods(ctx context.Context, modName, namespace, podType string, owner metav1.Object) ([]v1.Pod, error) {
-//	matchLabels := moduleLabels(modName, podType)
-//	pods, err := bsrm.getPods(ctx, namespace, matchLabels)
-//	if err != nil {
-//		return nil, fmt.Errorf("failed to get pods for module %s, namespace %s: %v", modName, namespace, err)
-//	}
-//
-//	// filter pods by owner, since they could have been created by the preflight
-//	// when checking that specific module
-//	moduleOwnedPods := filterPodsByOwner(pods, owner)
-//	return moduleOwnedPods, nil
-//}
-//
-//
-//
-//// GetPodStatus returns the status of a Pod, whether the latter is in progress or not and
-//// whether there was an error or not
-//func (bsrm *buildSignResourceManager) GetPodStatus(pod *v1.Pod) (Status, error) {
-//	switch pod.Status.Phase {
-//	case v1.PodSucceeded:
-//		return StatusCompleted, nil
-//	case v1.PodRunning, v1.PodPending:
-//		return StatusInProgress, nil
-//	case v1.PodFailed:
-//		return StatusFailed, nil
-//	default:
-//		return "", fmt.Errorf("unknown status: %v", pod.Status)
-//	}
-//}
-//
-//func (bsrm *buildSignResourceManager) getPods(ctx context.Context, namespace string, labels map[string]string) ([]v1.Pod, error) {
-//	podList := v1.PodList{}
-//	opts := []client.ListOption{
-//		client.MatchingLabels(labels),
-//		client.InNamespace(namespace),
-//	}
-//	if err := bsrm.client.List(ctx, &podList, opts...); err != nil {
-//		return nil, fmt.Errorf("could not list pods: %v", err)
-//	}
-//
-//	return podList.Items, nil
-//}
-//
-//func moduleKernelLabels(moduleName, targetKernel, podType string) map[string]string {
-//	labels := moduleLabels(moduleName, podType)
-//	labels[constants.TargetKernelTarget] = targetKernel
-//	return labels
-//}
-//
-//func moduleLabels(moduleName, podType string) map[string]string {
-//	return map[string]string{
-//		constants.ModuleNameLabel: moduleName,
-//		constants.PodType:         podType,
-//	}
-//}
-//
-//func filterPodsByOwner(pods []v1.Pod, owner metav1.Object) []v1.Pod {
-//	ownedPods := []v1.Pod{}
-//	for _, pod := range pods {
-//		if metav1.IsControlledBy(&pod, owner) {
-//			ownedPods = append(ownedPods, pod)
-//		}
-//	}
-//	return ownedPods
-//}
-//
+func (bsrm *buildSignResourceManager) GetBuildSignResourceByKernel(ctx context.Context, name, namespace, targetKernel string, resourceType kmmv1beta1.BuildOrSignAction, owner metav1.Object) (runtime.Object, error) {
+
+	matchLabels := moduleKernelLabels(name, targetKernel, resourceType)
+	resources, err := bsrm.getResources(ctx, namespace, matchLabels)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get module %s, resources by kernel %s: %v", name, targetKernel, err)
+	}
+
+	// filter resources by owner, since they could have been created by the preflight
+	// when checking that specific module
+	moduleOwnedResources := filterResourcesByOwner(resources, owner)
+	numFoundResources := len(moduleOwnedResources)
+	if numFoundResources == 0 {
+		return nil, buildsign.ErrNoMatchingBuildSignResource
+	} else if numFoundResources > 1 {
+		return nil, fmt.Errorf("expected 0 or 1 %s resources, got %d", resourceType, numFoundResources)
+	}
+
+	return &moduleOwnedResources[0], nil
+}
+
+// GetBuildSignResourceStatus returns the status of a Resource, whether the latter is in progress or not and
+// whether there was an error or not
+func (bsrm *buildSignResourceManager) GetBuildSignResourceStatus(obj runtime.Object) (Status, error) {
+	switch obj.Status.Phase {
+	case v1.PodSucceeded:
+		return buildsign.StatusCompleted, nil
+	case v1.PodRunning, v1.PodPending:
+		return buildsign.StatusInProgress, nil
+	case v1.PodFailed:
+		return buildsign.StatusFailed, nil
+	default:
+		return "", fmt.Errorf("unknown status: %v", obj.Status)
+	}
+}
+
+func (bsrm *buildSignResourceManager) IsBuildSignResourceChanged(existingObj runtime.Object, newObj runtime.Object) (bool, error) {
+
+	existingResource, ok := existingObj.(*v1.Pod)
+	if !ok {
+		return errors.New("the existing resource cannot be converted to the corect resource")
+	}
+	newResource, ok := newObj.(*v1.Pod)
+	if !ok {
+		return errors.New("the new resource cannot be converted to the corect resource")
+	}
+
+	existingAnnotations := existingResource.GetAnnotations()
+	newAnnotations := newResources.GetAnnotations()
+	if existingAnnotations == nil {
+		return false, fmt.Errorf("annotations are not present in the existing resource %s", existingResource.Name)
+	}
+	if existingAnnotations[constants.ResourceHashAnnotation] == newAnnotations[constants.ResourceHashAnnotation] {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (bsrm *buildSignResourceManager) GetModuleResources(ctx context.Context, modName, namespace string,
+	resourceType kmmv1beta1.BuildOrSignAction, owner metav1.Object) ([]v1.Pod, error) {
+
+	matchLabels := moduleLabels(modName, resourceType)
+	resources, err := bsrm.getResources(ctx, namespace, matchLabels)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resources for module %s, namespace %s: %v", modName, namespace, err)
+	}
+
+	// filter resources by owner, since they could have been created by the preflight
+	// when checking that specific module
+	moduleOwnedResources := filterResourcesByOwner(resources, owner)
+	return moduleOwnedResources, nil
+}
