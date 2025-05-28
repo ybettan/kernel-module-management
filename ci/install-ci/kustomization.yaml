@@ -7,13 +7,13 @@ resources:
 images:
 - name: gcr.io/k8s-staging-kmm/kernel-module-management-operator
   newName: quay.io/ybettan/kernel-module-management
-  newTag: hub-update
+  newTag: persist-config
 #- name: gcr.io/k8s-staging-kmm/kernel-module-management-signimage
 #  newName: host.minikube.internal:5000/kmm/signimage
 #  newTag: local
-#- name: gcr.io/k8s-staging-kmm/kernel-module-management-webhook-server
-#  newName: kmm-webhook-server
-#  newTag: local
+- name: gcr.io/k8s-staging-kmm/kernel-module-management-webhook-server
+  newName: quay.io/ybettan/kernel-module-management-webhook-server
+  newTag: persist-config
 #- name: gcr.io/k8s-staging-kmm/kernel-module-management-worker
 #  newName: kmm-worker
 #  newTag: local
