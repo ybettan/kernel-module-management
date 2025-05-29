@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+
 	kmmhubv1beta1 "github.com/kubernetes-sigs/kernel-module-management/api-hub/v1beta1"
 	kmmv1beta1 "github.com/kubernetes-sigs/kernel-module-management/api/v1beta1"
 	kmmv1beta2 "github.com/kubernetes-sigs/kernel-module-management/api/v1beta2"
@@ -40,6 +41,7 @@ func main() {
 		userConfigMapName          string
 	)
 
+	//FIXME: get the `leaderElectionREsourceID as a runtime arg and pass it to GetConfig`
 	flag.StringVar(&userConfigMapName, "config", "", "Name of the ConfigMap containing user config.")
 	flag.BoolVar(&enableModule, "enable-module", false, "Enable the webhook for Module resources")
 	flag.BoolVar(&enableManagedClusterModule, "enable-managedclustermodule", false, "Enable the webhook for ManagedClusterModule resources")
@@ -66,6 +68,7 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 	cg := config.NewConfigGetter(setupLogger)
 
+	//FIXME: we need to pass the `leaderElectionResourceID` here somehow
 	cfg, err := cg.GetConfig(ctx, userConfigMapName, operatorNamespace)
 	if err != nil {
 		cmd.FatalError(setupLogger, err, "failed to get kmm config")

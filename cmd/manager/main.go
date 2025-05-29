@@ -19,9 +19,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/kubernetes-sigs/kernel-module-management/internal/constants"
 	"os"
 	"strconv"
+
+	"github.com/kubernetes-sigs/kernel-module-management/internal/constants"
 
 	"github.com/kubernetes-sigs/kernel-module-management/internal/buildsign"
 	"github.com/kubernetes-sigs/kernel-module-management/internal/mbsc"
@@ -69,6 +70,7 @@ func main() {
 
 	var userConfigMapName string
 
+	//FIXME: get the `leaderElectionREsourceID as a runtime arg and pass it to GetConfig`
 	flag.StringVar(&userConfigMapName, "config", "", "Name of the ConfigMap containing user config.")
 
 	flag.Parse()
@@ -99,15 +101,13 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 	cg := config.NewConfigGetter(setupLogger)
 
-	cfg, err := cg.GetConfig(ctx, userConfigMapName, operatorNamespace)
+	cfg, err := cg.GetConfig(ctx, userConfigMapName, operatorNamespace, "kmm.sigs.x-k8s.io")
 	if err != nil {
 		cmd.FatalError(setupLogger, err, "failed to get kmm config")
 	}
 
-	options := cfg.ManagerOptions()
-	options.Scheme = scheme
-
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), *options)
+	options := cg.GetManagerOptionsFromConfig(cfg, scheme)
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)
 	if err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create manager")
 	}

@@ -3,11 +3,14 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"time"
+
 	"github.com/go-logr/logr"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	"time"
 )
 
 type Job struct {
@@ -51,7 +53,8 @@ type Config struct {
 
 //go:generate mockgen -source=config.go -package=config -destination=mock_config.go ConfigGetter,configHelperAPI
 type ConfigGetter interface {
-	GetConfig(ctx context.Context, userConfigMapName, userConfigMapNamespace string) (*Config, error)
+	GetConfig(ctx context.Context, userConfigMapName, userConfigMapNamespace, leaderElectionResourceID string) (*Config, error)
+	GetManagerOptionsFromConfig(conf *Config, scheme *runtime.Scheme) manager.Options
 }
 
 func NewConfigGetter(logger logr.Logger) ConfigGetter {
@@ -61,21 +64,29 @@ func NewConfigGetter(logger logr.Logger) ConfigGetter {
 	}
 }
 
-func (cg *configGetter) GetConfig(ctx context.Context, userConfigMapName, userConfigMapNamespace string) (*Config, error) {
-	cfg := cg.configHelper.newDefaultConfig()
-	managerConfig := &corev1.ConfigMap{}
+func (cg *configGetter) GetConfig(ctx context.Context, userConfigMapName, userConfigMapNamespace,
+	leaderElectionResourceID string) (*Config, error) {
+
+	cfg := cg.configHelper.newDefaultConfig(leaderElectionResourceID)
 	clnt, err := cg.configHelper.getClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get client %v", err)
 	}
 
-	if err = clnt.Get(ctx, types.NamespacedName{Namespace: userConfigMapNamespace, Name: userConfigMapName}, managerConfig); errors.IsNotFound(err) {
-		cg.logger.Info("no ConfigMap configuring the manager was found in the namespace, using the default configuration", "namespace", userConfigMapNamespace, "name", userConfigMapName)
-		return cfg, nil
+	managerConfig := &corev1.ConfigMap{}
+	namespacedName := types.NamespacedName{
+		Namespace: userConfigMapNamespace,
+		Name:      userConfigMapName,
 	}
-	if err != nil { // there was an error getting the cm that is not NotFound
-		return nil, fmt.Errorf("failed to get ConfigMap %s/%s %v", userConfigMapName, userConfigMapNamespace, err)
+	if err := clnt.Get(ctx, namespacedName, managerConfig); err != nil {
+		if errors.IsNotFound(err) {
+			cg.logger.Info("No ConfigMap configuring the manager was found in namespace, using default configuration",
+				"namespace", userConfigMapNamespace, "name", userConfigMapName)
+			return cfg, nil
+		}
+		return nil, fmt.Errorf("failed to get ConfigMap %s/%s: %v", userConfigMapName, userConfigMapNamespace, err)
 	}
+
 	err = cg.configHelper.overrideConfigFromCM(managerConfig, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load KMM config from ConfigMap %v", err)
@@ -83,19 +94,39 @@ func (cg *configGetter) GetConfig(ctx context.Context, userConfigMapName, userCo
 	return cfg, nil
 }
 
+func (cg *configGetter) GetManagerOptionsFromConfig(conf *Config, scheme *runtime.Scheme) manager.Options {
+
+	metrics := server.Options{
+		BindAddress:   conf.Metrics.BindAddress,
+		SecureServing: conf.Metrics.SecureServing,
+	}
+
+	if conf.Metrics.EnableAuthnAuthz {
+		metrics.FilterProvider = filters.WithAuthenticationAndAuthorization
+	}
+
+	return manager.Options{
+		HealthProbeBindAddress: conf.HealthProbeBindAddress,
+		LeaderElection:         conf.LeaderElection.Enabled,
+		LeaderElectionID:       conf.LeaderElection.ResourceID,
+		Metrics:                metrics,
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: conf.WebhookPort}),
+		Scheme:                 scheme,
+	}
+}
+
 type configHelperAPI interface {
 	getClient() (client.Client, error)
 	overrideConfigFromCM(cm *corev1.ConfigMap, cfg *Config) error
 	decodeStrictYAMLIntoConfig(yamlData []byte, config *Config) error
-	newDefaultConfig() *Config
+	newDefaultConfig(leaderElectionResourceID string) *Config
 }
 type configGetter struct {
 	configHelper configHelperAPI
 	logger       logr.Logger
 }
 
-type configHelper struct {
-}
+type configHelper struct{}
 
 func newConfigHelper() configHelperAPI {
 	return &configHelper{}
@@ -132,7 +163,7 @@ func (ch *configHelper) decodeStrictYAMLIntoConfig(yamlData []byte, config *Conf
 	return nil
 }
 
-func (ch *configHelper) newDefaultConfig() *Config {
+func (ch *configHelper) newDefaultConfig(leaderElectionResourceID string) *Config {
 	return &Config{
 		HealthProbeBindAddress: ":8081",
 		WebhookPort:            9443,
@@ -150,24 +181,5 @@ func (ch *configHelper) newDefaultConfig() *Config {
 			SELinuxType:      "spc_t",
 			FirmwareHostPath: ptr.To("/lib/firmware"),
 		},
-	}
-}
-
-func (c *Config) ManagerOptions() *manager.Options {
-	metrics := server.Options{
-		BindAddress:   c.Metrics.BindAddress,
-		SecureServing: c.Metrics.SecureServing,
-	}
-
-	if c.Metrics.EnableAuthnAuthz {
-		metrics.FilterProvider = filters.WithAuthenticationAndAuthorization
-	}
-
-	return &manager.Options{
-		HealthProbeBindAddress: c.HealthProbeBindAddress,
-		LeaderElection:         c.LeaderElection.Enabled,
-		LeaderElectionID:       c.LeaderElection.ResourceID,
-		Metrics:                metrics,
-		WebhookServer:          webhook.NewServer(webhook.Options{Port: c.WebhookPort}),
 	}
 }
