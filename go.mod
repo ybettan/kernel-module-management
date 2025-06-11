@@ -1,8 +1,6 @@
 module github.com/kubernetes-sigs/kernel-module-management
 
-go 1.23.0
-
-toolchain go1.23.4
+go 1.23.6
 
 require (
 	github.com/a8m/envsubst v1.4.2
@@ -19,6 +17,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	go.uber.org/mock v0.5.1
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
+	golang.org/x/net v0.38.0
 	golang.org/x/text v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.32.3
@@ -27,7 +26,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kubectl v0.32.3
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
-	open-cluster-management.io/api v0.16.1
+	open-cluster-management.io/api v1.0.0
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -90,7 +89,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.33.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
-	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
