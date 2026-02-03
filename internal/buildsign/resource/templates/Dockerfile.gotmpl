@@ -1,12 +1,14 @@
 {{- /*gotype: github.com/rh-ecosystem-edge/kernel-module-management/internal/sign/pod.TemplateData */ -}}
-FROM {{ .SignImage }} AS signimage
-
 FROM {{ .UnsignedImage }} as source
 
-COPY --from=signimage /usr/local/bin/sign-file /usr/local/bin/sign-file
+FROM {{ .SignImage }} AS signimage
 
+COPY --from=source /opt /opt # FIX to variable
 {{ range .FilesToSign }}
 RUN for file in {{ . }}; do \
         /usr/local/bin/sign-file sha256 /run/secrets/key/key.pem /run/secrets/cert/cert.pem ${file}; \
     done
 {{- end }}
+
+FROM source
+COPY --from=signimage /opt /opt # FIX to variable
