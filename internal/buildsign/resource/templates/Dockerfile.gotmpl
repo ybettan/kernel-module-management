@@ -1,15 +1,12 @@
 {{- /*gotype: github.com/rh-ecosystem-edge/kernel-module-management/internal/sign/pod.TemplateData */ -}}
-FROM {{ .UnsignedImage }} as source
-
 FROM {{ .SignImage }} AS signimage
 
-RUN mkdir -p /tmp/signroot
-{{ range .FilesToSign }}
-COPY --from=source {{ . }} /tmp/signroot{{ . }}
-RUN /usr/local/bin/sign-file sha256 /run/secrets/key/key.pem /run/secrets/cert/cert.pem /tmp/signroot{{ . }}
-{{- end }}
+FROM {{ .UnsignedImage }} as source
 
-FROM source
+COPY --from=signimage /usr/local/bin/sign-file /usr/local/bin/sign-file
+
 {{ range .FilesToSign }}
-COPY --from=signimage /tmp/signroot{{ . }} {{ . }}
+RUN for file in {{ . }}; do \
+        /usr/local/bin/sign-file sha256 /run/secrets/key/key.pem /run/secrets/cert/cert.pem ${file}; \
+    done
 {{- end }}
